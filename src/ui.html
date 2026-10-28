@@ -1,0 +1,506 @@
+<title>Grain Tracer</title>
+<style>
+/* Layout: engineering-workbench shell (ribbon / analysis tree / settings / graphics + messages), one light visual world like desktop CAE tools */
+:root {
+  color-scheme: light;
+  --app: #ececec;
+  --chrome: #f6f6f6;
+  --panel: #ffffff;
+  --line: #cfcfcf;
+  --line2: #e3e3e3;
+  --text: #1e1e1e;
+  --text2: #555;
+  --muted: #8c8c8c;
+  --blue: #1f63b5;
+  --blue-d: #154a8a;
+  --sel: #cfe3f6;
+  --hov: #e8f1fa;
+  --green: #2e8b3a;
+  --gb: #ffb000;
+  --s1: #2a78d6; --s2: #e0601f; --s3: #1a9f70; --s4: #c98500; --s5: #d55181; --s6: #2f7d2f; --s7: #6a5acd; --s8: #c83c3b;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", "Apple SD Gothic Neo", "Malgun Gothic", Arial, sans-serif;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--app); color: var(--text); font: 12px/1.4 var(--ui); -webkit-font-smoothing: antialiased; overflow: hidden; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+svg.i { width: 16px; height: 16px; flex: none; }
+svg.I { width: 30px; height: 30px; flex: none; }
+
+#app { height: 100%; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+
+/* title / quick access */
+.appbar { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; background: var(--chrome); border-bottom: 1px solid var(--line2); }
+.appbar .logo { width: 18px; height: 18px; }
+.appbar .qa { display: flex; gap: 2px; }
+.qbtn { width: 24px; height: 22px; display: grid; place-items: center; border: 1px solid transparent; background: none; border-radius: 3px; cursor: pointer; padding: 0; }
+.qbtn:hover { background: var(--hov); border-color: #bcd6ef; }
+.appbar .ttl { flex: 1; text-align: center; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 80px; }
+
+/* ribbon */
+.rtabs { display: flex; gap: 2px; padding: 0 8px; background: var(--chrome); }
+.rtab { border: 0; background: none; padding: 6px 12px 5px; font-size: 13px; color: var(--text); cursor: pointer; border-bottom: 2px solid transparent; }
+.rtab:hover { color: var(--blue); }
+.rtab[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); }
+.ribbon { background: var(--chrome); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+.rpage { display: flex; align-items: stretch; min-width: max-content; padding: 4px 4px 0; }
+.rgroup { display: flex; flex-direction: column; padding: 0 8px; border-right: 1px solid var(--line2); }
+.rgroup:last-child { border-right: 0; }
+.rbody { display: flex; align-items: flex-start; gap: 2px; flex: 1; }
+.rlabel { text-align: center; color: var(--text2); font-size: 11.5px; padding: 3px 0 4px; }
+.bbtn { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 52px; padding: 4px 6px; border: 1px solid transparent; background: none; border-radius: 3px; cursor: pointer; text-align: center; line-height: 1.15; }
+.bbtn span { font-size: 12px; white-space: nowrap; }
+.bbtn:hover, .sbtn:hover { background: var(--hov); border-color: #bcd6ef; }
+.bbtn[aria-pressed="true"], .sbtn[aria-pressed="true"] { background: var(--sel); border-color: #8fbbe6; }
+.bbtn:disabled, .sbtn:disabled { opacity: .45; cursor: default; background: none; border-color: transparent; }
+.scol { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
+.sbtn { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border: 1px solid transparent; background: none; border-radius: 3px; cursor: pointer; white-space: nowrap; height: 24px; }
+.rfield { display: flex; align-items: center; gap: 6px; height: 24px; white-space: nowrap; color: var(--text2); }
+.rfield select, .rfield input { height: 22px; }
+.dirty-dot { width: 7px; height: 7px; border-radius: 50%; background: #d9822b; display: inline-block; margin-left: 3px; vertical-align: 1px; }
+
+/* workspace */
+.work { display: grid; grid-template-columns: var(--tw, 250px) 5px var(--sw, 330px) 5px minmax(0, 1fr); padding: 6px; gap: 0; min-height: 0; }
+.right { display: grid; grid-template-rows: minmax(0, 1fr) 5px var(--bh, 170px); min-width: 0; min-height: 0; }
+.split { background: transparent; }
+.split.v { cursor: col-resize; }
+.split.h { cursor: row-resize; }
+.split:hover { background: #cfe0f2; }
+.pane { background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.phead { display: flex; align-items: center; padding: 6px 10px 2px; }
+.ptitle { font-size: 21px; font-weight: 300; color: #2b2b2b; letter-spacing: -.01em; }
+.psub { padding: 0 10px 6px; color: var(--blue); font-size: 12.5px; }
+.ptool { display: flex; gap: 2px; padding: 2px 8px 6px; border-bottom: 1px solid var(--line2); }
+.pbody { flex: 1; overflow: auto; min-height: 0; }
+
+/* tree */
+.tree { list-style: none; margin: 0; padding: 4px 0 8px; }
+.tree ul { list-style: none; margin: 0; padding: 0; }
+.tn { display: flex; align-items: center; gap: 5px; height: 21px; padding-right: 8px; cursor: default; white-space: nowrap; user-select: none; }
+.tn:hover { background: var(--hov); }
+.tn[aria-selected="true"] { background: var(--sel); }
+.tn .tw { width: 12px; height: 12px; display: grid; place-items: center; color: #777; flex: none; }
+.tn .tl { overflow: hidden; text-overflow: ellipsis; }
+.tn .tb { margin-left: auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tn.off .tl { color: var(--muted); }
+
+/* settings */
+.sform { padding-bottom: 14px; }
+.lrow { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 10px 8px; border-bottom: 1px solid var(--line2); }
+details.sec { border-bottom: 1px solid var(--line2); }
+details.sec > summary { list-style: none; display: flex; align-items: center; gap: 6px; padding: 7px 10px; color: var(--blue); font-size: 13px; cursor: pointer; user-select: none; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid #555; border-bottom: 1.5px solid #555; transform: rotate(-45deg); margin: 0 4px 0 2px; transition: transform .12s; }
+details.sec[open] > summary::before { transform: rotate(45deg); }
+.sbody { padding: 2px 12px 10px 26px; display: flex; flex-direction: column; gap: 7px; }
+.f { display: flex; flex-direction: column; gap: 3px; }
+.f > label, .flab { color: var(--text); }
+.frow { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 8px; align-items: center; }
+.funit { display: grid; grid-template-columns: minmax(0, 1fr) 42px; gap: 6px; align-items: center; }
+.funit span, .frow output { color: var(--text2); font-variant-numeric: tabular-nums; text-align: right; }
+input[type=number], input[type=text], select { width: 100%; height: 23px; padding: 1px 6px; border: 1px solid #b9b9b9; border-radius: 2px; background: #fff; font-variant-numeric: tabular-nums; }
+select { padding-right: 18px; }
+input:focus, select:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+input[type=range] { width: 100%; accent-color: var(--blue); margin: 0; }
+.chk { display: flex; align-items: center; gap: 6px; }
+.chk input { margin: 0; accent-color: var(--blue); }
+.btnrow { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { height: 24px; padding: 0 12px; border: 1px solid #adadad; background: linear-gradient(#fdfdfd, #ececec); border-radius: 2px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: #7ea9d6; background: linear-gradient(#fbfdff, #e3eef9); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.go { border-color: #2b7a34; background: linear-gradient(#4aa654, #2e8b3a); color: #fff; }
+.note { color: var(--text2); font-size: 11.5px; line-height: 1.45; }
+.ptab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ptab th, .ptab td { padding: 3px 6px; border-bottom: 1px solid var(--line2); text-align: left; white-space: nowrap; }
+.ptab th { font-weight: 400; color: var(--text2); width: 52%; }
+.ptab td.n { text-align: right; }
+.gtbox { border: 1px solid #c9dcef; background: #f2f8fd; padding: 6px 8px; font-size: 11.5px; color: #234; }
+.chip { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.25); }
+.xbtn { border: 0; background: none; color: #888; cursor: pointer; padding: 0 4px; }
+.xbtn:hover { color: #c00; }
+.elist { border: 1px solid var(--line2); max-height: 220px; overflow: auto; }
+.elist div { display: flex; align-items: center; padding: 2px 6px; border-bottom: 1px solid var(--line2); }
+.elist div:last-child { border-bottom: 0; }
+.elist span { flex: 1; }
+
+/* graphics window */
+.wtabs { display: flex; align-items: flex-end; gap: 0; padding: 4px 6px 0; border-bottom: 1px solid var(--line2); background: #fafafa; }
+.wtab { border: 0; background: none; padding: 5px 12px 6px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; font-size: 12.5px; }
+.wtab:hover { color: var(--blue); }
+.wtab[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); }
+.gtool { display: flex; align-items: center; gap: 1px; padding: 3px 6px; border-bottom: 1px solid var(--line2); flex-wrap: wrap; }
+.gsep { width: 1px; height: 24px; background: var(--line); margin: 0 7px; }
+.gtool { gap: 2px; padding: 4px 8px; }
+.gtool .qbtn { width: 34px; height: 32px; border-radius: 4px; }
+.gtool svg.i { width: 22px; height: 22px; }
+.gbody { position: relative; flex: 1; min-height: 0; }
+.stage { position: absolute; inset: 0; background: linear-gradient(#ffffff, #dfe5ec); overflow: hidden; touch-action: none; }
+.stage canvas, .plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.plot { position: absolute; inset: 0; background: #fff; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--text2); pointer-events: none; }
+.linkbtn { margin-top: 10px; border: 0; background: none; color: var(--blue); cursor: pointer; text-decoration: underline; pointer-events: auto; padding: 0; }
+.tn .tx { visibility: hidden; margin-left: 4px; padding: 0 2px; }
+.tn:hover .tx { visibility: visible; }
+.tn.act > .tl { font-weight: 600; }
+.empty b { display: block; font-size: 15px; font-weight: 400; color: #333; margin-bottom: 4px; }
+.drop { position: absolute; inset: 8px; border: 2px dashed var(--blue); background: rgba(31,99,181,.06); display: grid; place-items: center; color: var(--blue); font-size: 14px; z-index: 6; }
+.tip { position: absolute; z-index: 5; pointer-events: none; background: #fffff4; color: #222; border: 1px solid #b8b8a0; box-shadow: 0 1px 3px rgba(0,0,0,.15); padding: 4px 7px; font-size: 11.5px; line-height: 1.45; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cbar { position: absolute; right: 18px; top: 18px; bottom: 18px; width: 62px; z-index: 3; pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; }
+.cbar .ct { font-size: 11.5px; color: #222; margin-bottom: 6px; white-space: nowrap; }
+.cbar .cb { position: relative; flex: 1; width: 100%; max-height: 420px; }
+.cbar canvas { position: absolute; left: 0; top: 0; width: 16px; height: 100%; border: 1px solid #555; }
+.cbar .tk { position: absolute; left: 21px; font-size: 11px; color: #222; transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+.cbar .tk::before { content: ""; position: absolute; left: -5px; top: 50%; width: 4px; border-top: 1px solid #333; }
+.axis { position: absolute; left: 14px; bottom: 14px; z-index: 3; pointer-events: none; font-size: 11px; color: #333; }
+
+/* messages */
+.mbody { flex: 1; overflow: auto; min-height: 0; font-variant-numeric: tabular-nums; }
+.log { padding: 4px 10px; }
+.log div { padding: 1px 0; color: #333; }
+.log .t { color: var(--muted); margin-right: 8px; }
+.log .w { color: #b5551a; }
+.prog { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.pr { display: grid; grid-template-columns: 130px minmax(0, 1fr) 60px; gap: 10px; align-items: center; }
+.pr .bar { height: 10px; border: 1px solid #b9b9b9; background: #f4f4f4; }
+.pr .bar i { display: block; height: 100%; background: linear-gradient(#5aa9e8, #2b78c6); width: 0; }
+.pr span:last-child { text-align: right; color: var(--text2); }
+.dtab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.dtab th, .dtab td { padding: 2px 8px; border-right: 1px solid var(--line2); border-bottom: 1px solid var(--line2); text-align: right; white-space: nowrap; }
+.dtab th { position: sticky; top: 0; background: #f3f3f3; font-weight: 400; color: #333; }
+.dtab tr.ex td { color: var(--muted); }
+
+/* status bar */
+.statusbar { display: flex; align-items: center; gap: 16px; height: 24px; padding: 0 12px; background: var(--chrome); border-top: 1px solid var(--line); color: var(--text2); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.statusbar .msg { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.statusbar .busy { color: var(--blue); }
+.statusbar b { font-weight: 500; color: #333; }
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  #app { height: auto; }
+  .work { grid-template-columns: minmax(0, 1fr); padding: 6px 16px; gap: 6px; }
+  .split { display: none; }
+  .tree-pane { max-height: 240px; }
+  .right { grid-template-rows: 62vh 6px 220px; }
+  .appbar .ttl { padding-right: 0; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gTurbo" x1="0" x2="1"><stop offset="0" stop-color="#30123b"/><stop offset=".25" stop-color="#2fa1f0"/><stop offset=".5" stop-color="#5dfc6f"/><stop offset=".75" stop-color="#f9b52c"/><stop offset="1" stop-color="#bf2d06"/></linearGradient>
+  </defs>
+  <symbol id="logo" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="6" fill="#1d2a3a"/><path d="M6 9l7-3 7 4 6-2v8l-5 4 4 6-8 2-7-3-4-6z" fill="none" stroke="#ffb000" stroke-width="1.6" stroke-linejoin="round"/><path d="M13 6l1 9 6-5M14 15l-8 3M14 15l3 6 4-1M17 21l-2 6" fill="none" stroke="#ffb000" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-open" viewBox="0 0 32 32"><path d="M3 8h9l3 3h12v15H3z" fill="#f0c25c" stroke="#a87c1d"/><path d="M3 26l4-11h23l-4 11z" fill="#f7d67e" stroke="#a87c1d"/></symbol>
+  <symbol id="i-sample" viewBox="0 0 32 32"><path d="M4 6h24v20H4z" fill="#d9dee5" stroke="#6c7a89"/><path d="M4 14l7-3 6 4 5-5 6 2M11 11l-2-5M17 15l1 11M17 15l-8 6-5-1M22 10l6 9-10 2" fill="none" stroke="#3f4b58" stroke-width="1.3"/><circle cx="25" cy="23" r="5" fill="#2e8b3a"/><path d="M22.6 23h4.8M25 20.6v4.8" stroke="#fff" stroke-width="1.6"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 32 32"><rect x="3" y="11" width="26" height="10" fill="#f3d27a" stroke="#9c7a1c"/><path d="M7 11v4M11 11v6M15 11v4M19 11v6M23 11v4M27 11v6" stroke="#6b520e"/></symbol>
+  <symbol id="i-scaleline" viewBox="0 0 32 32"><path d="M5 16h22" stroke="#c0398f" stroke-width="2.2"/><path d="M5 11v10M27 11v10" stroke="#c0398f" stroke-width="2.2"/><path d="M9 25h14" stroke="#777" stroke-dasharray="2 2"/></symbol>
+  <symbol id="i-process" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" rx="4" fill="#2e8b3a"/><path d="M9 12.5h14M9 19.5h14" stroke="#fff" stroke-width="3" stroke-linecap="round"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 32 32"><path d="M6 26L20 12" stroke="#555" stroke-width="2.6" stroke-linecap="round"/><path d="M20 12l3-3" stroke="#1f63b5" stroke-width="2.6" stroke-linecap="round"/><path d="M24 3l1 3 3 1-3 1-1 3-1-3-3-1 3-1zM12 5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7zM27 15l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" fill="#e3a21a"/></symbol>
+  <symbol id="i-pan" viewBox="0 0 32 32"><path d="M16 3v26M3 16h26" stroke="#3b5f8a" stroke-width="2"/><path d="M16 3l-4 4h8zM16 29l-4-4h8zM3 16l4-4v8zM29 16l-4-4v8z" fill="#3b5f8a"/></symbol>
+  <symbol id="i-roi" viewBox="0 0 32 32"><rect x="6" y="7" width="20" height="18" fill="#e6f1fb" stroke="#1f63b5" stroke-width="1.6" stroke-dasharray="3 2"/><path d="M4 5h4v4H4zM24 5h4v4h-4zM4 23h4v4H4zM24 23h4v4h-4z" fill="#fff" stroke="#1f63b5"/></symbol>
+  <symbol id="i-draw" viewBox="0 0 32 32"><path d="M6 21l14-14 5 5-14 14H6z" fill="#f2a44b" stroke="#8a5413"/><path d="M20 7l5 5" stroke="#8a5413"/><path d="M6 21l5 5" stroke="#8a5413"/><path d="M4 29h24" stroke="#ffb000" stroke-width="2"/></symbol>
+  <symbol id="i-erase" viewBox="0 0 32 32"><path d="M5 20l11-11 9 9-7 7h-7z" fill="#f4b6c6" stroke="#9a4a5e"/><path d="M11 14l9 9" stroke="#9a4a5e"/><path d="M14 28h14" stroke="#9a4a5e"/></symbol>
+  <symbol id="i-seed" viewBox="0 0 32 32"><path d="M4 8l9-3 9 5 6 9-8 8-11-1-5-9z" fill="#e8eef5" stroke="#5a6d82"/><circle cx="15" cy="16" r="3.4" fill="#c0398f"/><path d="M24 4v8M20 8h8" stroke="#2e8b3a" stroke-width="2"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 32 32"><circle cx="12" cy="16" r="8" fill="#cfe3f6" stroke="#1f63b5"/><circle cx="20" cy="16" r="8" fill="#cfe3f6" stroke="#1f63b5" fill-opacity=".8"/><path d="M16 9.1v13.8" stroke="#1f63b5" stroke-dasharray="2 2"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 32 32"><path d="M9 12h12a6 6 0 010 12h-6" fill="none" stroke="#3b5f8a" stroke-width="2.4"/><path d="M4 12l7-6v12z" fill="#3b5f8a"/></symbol>
+  <symbol id="i-image" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" fill="#d6dbe1" stroke="#6c7a89"/><path d="M5 24l7-9 5 6 4-4 6 7z" fill="#7c8a99"/><circle cx="22" cy="12" r="2.5" fill="#fff"/></symbol>
+  <symbol id="i-gb" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" fill="#6d7680"/><path d="M3 14l8-2 6 4 6-6 6 2M11 12l-2-6M17 16l1 10M17 16l-9 6-5-1M23 10l3 8-8 1" fill="none" stroke="#ffb000" stroke-width="1.6"/></symbol>
+  <symbol id="i-grain" viewBox="0 0 32 32"><path d="M3 6h10l-1 8-9 2z" fill="#e57373"/><path d="M13 6h9l-3 9-7-1z" fill="#64b5f6"/><path d="M22 6h7v9l-10 0z" fill="#81c784"/><path d="M3 16l9-2 7 1-2 11H3z" fill="#ffd54f"/><path d="M19 15h10v11H17z" fill="#ba68c8"/><rect x="3" y="6" width="26" height="20" fill="none" stroke="#555"/></symbol>
+  <symbol id="i-size" viewBox="0 0 32 32"><path d="M3 6h10l-1 8-9 2z" fill="#30123b"/><path d="M13 6h9l-3 9-7-1z" fill="#2fa1f0"/><path d="M22 6h7v9l-10 0z" fill="#5dfc6f"/><path d="M3 16l9-2 7 1-2 11H3z" fill="#f9b52c"/><path d="M19 15h10v11H17z" fill="#bf2d06"/><rect x="3" y="6" width="26" height="20" fill="none" stroke="#555"/></symbol>
+  <symbol id="i-signal" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" fill="#1b1b1b"/><path d="M3 14l8-2 6 4 6-6 6 2M11 12l-2-6M17 16l1 10M17 16l-9 6-5-1" fill="none" stroke="#e8e8e8" stroke-width="1.2"/></symbol>
+  <symbol id="i-csv" viewBox="0 0 32 32"><path d="M6 3h14l6 6v20H6z" fill="#fff" stroke="#5f6b77"/><path d="M20 3v6h6" fill="none" stroke="#5f6b77"/><rect x="9" y="13" width="14" height="12" fill="#e3f1e3" stroke="#2e8b3a"/><path d="M9 17h14M9 21h14M14 13v12M18.5 13v12" stroke="#2e8b3a"/></symbol>
+  <symbol id="i-png" viewBox="0 0 32 32"><path d="M6 3h14l6 6v20H6z" fill="#fff" stroke="#5f6b77"/><path d="M20 3v6h6" fill="none" stroke="#5f6b77"/><path d="M9 25l5-6 3 3 3-4 3 7z" fill="#2fa1f0"/><circle cx="13" cy="14" r="2" fill="#f9b52c"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><rect x="7" y="18" width="4" height="9" fill="#2a78d6"/><rect x="12" y="10" width="4" height="17" fill="#2a78d6"/><rect x="17" y="6" width="4" height="21" fill="#2a78d6"/><rect x="22" y="15" width="4" height="12" fill="#2a78d6"/></symbol>
+  <symbol id="i-compare" viewBox="0 0 32 32"><path d="M4 27h25M4 4v23" stroke="#444"/><rect x="7" y="16" width="3" height="11" fill="#2a78d6"/><rect x="10" y="12" width="3" height="15" fill="#e0601f"/><rect x="16" y="8" width="3" height="19" fill="#2a78d6"/><rect x="19" y="13" width="3" height="14" fill="#e0601f"/><rect x="24" y="19" width="3" height="8" fill="#2a78d6"/></symbol>
+  <symbol id="i-add" viewBox="0 0 32 32"><path d="M4 27h17M4 6v21" stroke="#444"/><rect x="7" y="16" width="4" height="11" fill="#2a78d6"/><rect x="13" y="10" width="4" height="17" fill="#e0601f"/><circle cx="24" cy="10" r="6" fill="#2e8b3a"/><path d="M21 10h6M24 7v6" stroke="#fff" stroke-width="2"/></symbol>
+  <symbol id="i-close" viewBox="0 0 32 32"><path d="M4 7h24v18H4z" fill="#d6dbe1" stroke="#4f6a8a" stroke-width="1.4"/><circle cx="23" cy="22" r="6.5" fill="#c83c3b"/><path d="M20.5 19.5l5 5M25.5 19.5l-5 5" stroke="#fff" stroke-width="2"/></symbol>
+  <symbol id="i-processall" viewBox="0 0 32 32"><rect x="8" y="2" width="21" height="21" rx="3" fill="#8cc596"/><rect x="5.5" y="5.5" width="21" height="21" rx="3" fill="#5daa67"/><rect x="3" y="9" width="21" height="21" rx="3.5" fill="#2e8b3a"/><path d="M7.5 17h12M7.5 22.5h12" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-zin" viewBox="0 0 32 32"><circle cx="13" cy="13" r="8" fill="#e8f1fa" stroke="#1f63b5" stroke-width="2"/><path d="M19 19l8 8" stroke="#1f63b5" stroke-width="3" stroke-linecap="round"/><path d="M9 13h8M13 9v8" stroke="#1f63b5" stroke-width="2"/></symbol>
+  <symbol id="i-zout" viewBox="0 0 32 32"><circle cx="13" cy="13" r="8" fill="#e8f1fa" stroke="#1f63b5" stroke-width="2"/><path d="M19 19l8 8" stroke="#1f63b5" stroke-width="3" stroke-linecap="round"/><path d="M9 13h8" stroke="#1f63b5" stroke-width="2"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 32 32"><rect x="9" y="10" width="14" height="12" fill="#cfe3f6" stroke="#1f63b5"/><path d="M4 9V4h5M23 4h5v5M28 23v5h-5M9 28H4v-5" fill="none" stroke="#1f63b5" stroke-width="2"/></symbol>
+  <symbol id="i-file" viewBox="0 0 32 32"><path d="M4 7h24v18H4z" fill="#d6dbe1" stroke="#4f6a8a" stroke-width="1.6"/><path d="M4 18l8-7 6 6 4-3 6 6" fill="none" stroke="#4f6a8a" stroke-width="1.6"/></symbol>
+  <symbol id="i-detect" viewBox="0 0 32 32"><path d="M4 6h24l-9 11v9l-6-3v-6z" fill="#cfe3f6" stroke="#1f63b5" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 32 32"><path d="M6 22l14-14 5 5-14 14H6z" fill="#f2a44b" stroke="#8a5413" stroke-width="1.4"/></symbol>
+  <symbol id="i-results" viewBox="0 0 32 32"><path d="M3 8h10l3 3h13v15H3z" fill="#b986c9" stroke="#6d3f7c" stroke-width="1.4"/></symbol>
+  <symbol id="i-table" viewBox="0 0 32 32"><rect x="4" y="6" width="24" height="20" fill="#fff" stroke="#555" stroke-width="1.6"/><path d="M4 12h24M4 18h24M13 6v20" stroke="#555" stroke-width="1.4"/></symbol>
+  <symbol id="i-export" viewBox="0 0 32 32"><path d="M5 10v17h22V10" fill="none" stroke="#555" stroke-width="1.8"/><path d="M16 4v15M10 10l6-6 6 6" fill="none" stroke="#1f63b5" stroke-width="2.2"/></symbol>
+</svg>
+
+<div id="app">
+  <header class="appbar">
+    <svg class="logo"><use href="#logo"/></svg>
+    <div class="qa">
+      <button class="qbtn" data-act="open" title="Add images (⌘O)"><svg class="i"><use href="#i-open"/></svg></button>
+      <button class="qbtn" data-act="process" title="Process"><svg class="i"><use href="#i-process"/></svg></button>
+      <button class="qbtn" data-act="undo" title="Undo (⌘Z)"><svg class="i"><use href="#i-undo"/></svg></button>
+    </div>
+    <div class="ttl" id="ttl">Untitled — Grain Tracer</div>
+  </header>
+
+  <nav class="rtabs" role="tablist">
+    <button class="rtab" role="tab" data-r="home" aria-selected="true">Home</button>
+    <button class="rtab" role="tab" data-r="edit" aria-selected="false">Edit</button>
+    <button class="rtab" role="tab" data-r="results" aria-selected="false">Results</button>
+  </nav>
+  <div class="ribbon">
+    <div class="rpage" data-r="home">
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-act="open"><svg class="I"><use href="#i-open"/></svg><span>Add<br>Images</span></button>
+        <button class="bbtn" data-act="close"><svg class="I"><use href="#i-close"/></svg><span>Close<br>Image</span></button>
+      </div><div class="rlabel">Image</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-act="ticks"><svg class="I"><use href="#i-ruler"/></svg><span>Detect<br>Ticks</span></button>
+        <div class="scol">
+          <button class="sbtn" data-tool="scale"><svg class="i"><use href="#i-scaleline"/></svg>Scale Line</button>
+          <div class="rfield">Bar <input type="number" id="rbBar" step="0.01" min="0.01" style="width:58px"> µm</div>
+          <div class="rfield"><span id="rbPx">– nm/px</span></div>
+        </div>
+      </div><div class="rlabel">Scale</div></div>
+      <div class="rgroup"><div class="rbody">
+        <div class="scol">
+          <div class="rfield">Type <select id="rbMode" style="width:112px"><option value="line">Line</option><option value="contrast">Contrast</option></select></div>
+          <button class="sbtn" data-act="auto"><svg class="i"><use href="#i-auto"/></svg>Auto Parameters</button>
+          <button class="sbtn" data-act="applyAll"><svg class="i"><use href="#i-detect"/></svg>Apply to All Images</button>
+        </div>
+        <button class="bbtn" data-act="process" id="rbProc"><svg class="I"><use href="#i-process"/></svg><span>Process</span></button>
+        <button class="bbtn" data-act="processAll"><svg class="I"><use href="#i-processall"/></svg><span>Process<br>All</span></button>
+      </div><div class="rlabel">Detection</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-view="image"><svg class="I"><use href="#i-image"/></svg><span>Image</span></button>
+        <button class="bbtn" data-view="overlay"><svg class="I"><use href="#i-gb"/></svg><span>Boundary</span></button>
+        <button class="bbtn" data-view="grains"><svg class="I"><use href="#i-grain"/></svg><span>Grain</span></button>
+        <button class="bbtn" data-view="size"><svg class="I"><use href="#i-size"/></svg><span>Size Map</span></button>
+        <button class="bbtn" data-view="ridge"><svg class="I"><use href="#i-signal"/></svg><span>Signal</span></button>
+      </div><div class="rlabel">View</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-wtab="hist"><svg class="I"><use href="#i-hist"/></svg><span>Histogram</span></button>
+        <button class="bbtn" data-wtab="cmp"><svg class="I"><use href="#i-compare"/></svg><span>Compare</span></button>
+      </div><div class="rlabel">Results</div></div>
+    </div>
+
+    <div class="rpage" data-r="edit" hidden>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-tool="pan"><svg class="I"><use href="#i-pan"/></svg><span>Pan</span></button>
+        <button class="bbtn" data-tool="roi"><svg class="I"><use href="#i-roi"/></svg><span>ROI</span></button>
+        <button class="bbtn" data-tool="scale"><svg class="I"><use href="#i-scaleline"/></svg><span>Scale Line</span></button>
+      </div><div class="rlabel">Navigate</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-tool="draw"><svg class="I"><use href="#i-draw"/></svg><span>Draw GB</span></button>
+        <button class="bbtn" data-tool="erase"><svg class="I"><use href="#i-erase"/></svg><span>Erase GB</span></button>
+        <button class="bbtn" data-tool="seed"><svg class="I"><use href="#i-seed"/></svg><span>Split</span></button>
+        <button class="bbtn" data-tool="merge"><svg class="I"><use href="#i-merge"/></svg><span>Merge</span></button>
+        <div class="scol">
+          <button class="sbtn" data-act="undo"><svg class="i"><use href="#i-undo"/></svg>Undo</button>
+          <div class="rfield">Brush <input type="number" id="rbBrush" min="1" max="30" step="1" style="width:50px"> px</div>
+        </div>
+      </div><div class="rlabel">Correct</div></div>
+    </div>
+
+    <div class="rpage" data-r="results" hidden>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-wtab="hist"><svg class="I"><use href="#i-hist"/></svg><span>Histogram</span></button>
+        <button class="bbtn" data-view="size"><svg class="I"><use href="#i-size"/></svg><span>Size Map</span></button>
+        <button class="bbtn" data-wtab="cmp"><svg class="I"><use href="#i-compare"/></svg><span>Compare</span></button>
+      </div><div class="rlabel">Plots</div></div>
+      <div class="rgroup"><div class="rbody">
+        <button class="bbtn" data-act="exGrains"><svg class="I"><use href="#i-csv"/></svg><span>Grains<br>CSV</span></button>
+        <button class="bbtn" data-act="exSum"><svg class="I"><use href="#i-csv"/></svg><span>Summary<br>CSV</span></button>
+        <button class="bbtn" data-act="exPng"><svg class="I"><use href="#i-png"/></svg><span>Image<br>PNG</span></button>
+        <button class="bbtn" data-act="exPlot"><svg class="I"><use href="#i-png"/></svg><span>Plot<br>PNG</span></button>
+        <button class="bbtn" data-act="exCmp"><svg class="I"><use href="#i-csv"/></svg><span>Compare<br>CSV</span></button>
+      </div><div class="rlabel">Export</div></div>
+    </div>
+  </div>
+
+  <main class="work" id="work">
+    <section class="pane tree-pane">
+      <div class="phead"><div class="ptitle">Analysis Builder</div></div>
+      <div class="pbody"><ul class="tree" id="tree"></ul></div>
+    </section>
+    <div class="split v" data-split="tw"></div>
+
+    <section class="pane">
+      <div class="phead"><div class="ptitle">Settings</div></div>
+      <div class="psub" id="setSub">Image</div>
+      <div class="pbody" id="settings">
+
+        <div class="sform" data-node="image">
+          <div class="lrow"><label for="imgName">Label:</label><input type="text" id="imgName" placeholder="e.g. 340 mJ/cm² · 800 shots"></div>
+          <div class="lrow"><span></span><label class="chk"><input type="checkbox" id="cmpOn" checked> Include in Compare</label></div>
+          <details class="sec" open><summary>Image Properties</summary><div class="sbody">
+            <table class="ptab" id="imgProps"></table>
+          </div></details>
+          <details class="sec" open><summary>Scale</summary><div class="sbody">
+            <div class="f"><label for="nmpx">Pixel size:</label><div class="funit"><input type="number" id="nmpx" step="0.001" min="0.001"><span>nm/px</span></div></div>
+            <div class="f"><label for="barlen">Scale bar value (printed on image):</label><div class="funit"><input type="number" id="barlen" step="0.01" min="0.001" value="2.00"><span>µm</span></div></div>
+            <div class="btnrow"><button class="btn" data-act="ticks">Detect Ticks</button><button class="btn" data-tool="scale">Draw Scale Line</button><button class="btn" id="applyLineBtn" disabled>Apply Line</button></div>
+            <div class="note" id="scaleinfo">Hitachi dotted scale(11 ticks)를 자동으로 인식합니다. 같은 이름의 .txt를 함께 열면 PixelSize를 우선 적용합니다.</div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="roi" hidden>
+          <details class="sec" open><summary>Region of Interest</summary><div class="sbody">
+            <div class="frow"><label class="flab">x min</label><input type="number" id="roiX0" step="1"></div>
+            <div class="frow"><label class="flab">y min</label><input type="number" id="roiY0" step="1"></div>
+            <div class="frow"><label class="flab">x max</label><input type="number" id="roiX1" step="1"></div>
+            <div class="frow"><label class="flab">y max</label><input type="number" id="roiY1" step="1"></div>
+            <div class="btnrow"><button class="btn" data-tool="roi">Edit in Graphics</button><button class="btn" id="roiReset">Reset</button></div>
+            <div class="note">단위는 원본 image pixel입니다. 기본 ROI는 하단 data bar를 제외합니다. 경계에 닿은 grain은 통계에서 제외할 수 있습니다.</div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="detect" hidden>
+          <details class="sec" open><summary>Boundary Model</summary><div class="sbody">
+            <div class="f"><label for="mode">Boundary type:</label><select id="mode"><option value="line">Line — crack / groove boundary</option><option value="contrast">Contrast — grain-to-grain tone step</option></select></div>
+            <div class="f"><label for="pol">Line tone:</label><select id="pol"><option value="dark">Dark line</option><option value="bright">Bright line</option><option value="both">Dark and bright</option></select></div>
+            <label class="chk" id="destripeRow" hidden><input type="checkbox" id="destripe" checked> Remove scan-line noise</label>
+            <div class="f"><label for="fres">Computation scale:</label><select id="fres"><option value="1">1/1 — full resolution</option><option value="2">1/2</option><option value="4">1/4 — fast</option></select></div>
+          </div></details>
+          <details class="sec" open><summary>Parameters</summary><div class="sbody">
+            <div class="f"><label for="sigma">Line width σ</label><div class="frow"><input type="range" id="sigma" min="1" max="8" step="0.2"><output id="sigmaO"></output></div></div>
+            <div class="f"><label for="L">Minimum line length</label><div class="frow"><input type="range" id="L" min="0" max="80" step="2"><output id="LO"></output></div></div>
+            <div class="f"><label for="hi">Threshold, high</label><div class="frow"><input type="range" id="hi" min="0.1" max="0.95" step="0.01"><output id="hiO"></output></div></div>
+            <div class="f"><label for="lo">Threshold, low</label><div class="frow"><input type="range" id="lo" min="0.02" max="0.9" step="0.01"><output id="loO"></output></div></div>
+            <div class="f"><label for="h">Split depth h</label><div class="frow"><input type="range" id="h" min="0.5" max="20" step="0.5"><output id="hO"></output></div></div>
+            <div class="f"><label for="merge">Weak-boundary merge</label><div class="frow"><input type="range" id="merge" min="0" max="0.6" step="0.01"><output id="mergeO"></output></div></div>
+            <div class="btnrow"><button class="btn" data-act="auto">Auto Parameters</button><button class="btn go" data-act="process">Process</button></div>
+            <div class="note">기본값은 nm 단위로 정의되어 있어 pixel size에 맞춰 자동 환산됩니다.</div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="edits" hidden>
+          <details class="sec" open><summary>Brush</summary><div class="sbody">
+            <div class="f"><label for="brush">Brush radius</label><div class="frow"><input type="range" id="brush" min="1" max="20" step="1"><output id="brushO"></output></div></div>
+            <div class="btnrow"><button class="btn" data-tool="draw">Draw GB</button><button class="btn" data-tool="erase">Erase GB</button><button class="btn" data-tool="seed">Split</button><button class="btn" data-tool="merge">Merge</button></div>
+          </div></details>
+          <details class="sec" open><summary>Edit List</summary><div class="sbody">
+            <div class="elist" id="elist"></div>
+            <div class="btnrow"><button class="btn" data-act="undo">Undo Last</button><button class="btn" id="clearEdits">Clear All</button></div>
+            <div class="note">보정 기록은 좌표로 저장되어 파라미터를 바꿔 다시 Process해도 유지됩니다.</div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="stats" hidden>
+          <details class="sec" open><summary>Grain Filter</summary><div class="sbody">
+            <div class="f"><label for="minA">Minimum ECD</label><div class="frow"><input type="range" id="minA" min="0" max="300" step="5"><output id="minAO"></output></div></div>
+            <label class="chk"><input type="checkbox" id="edge" checked> Exclude grains touching ROI border</label>
+          </div></details>
+          <details class="sec" open><summary>Statistics</summary><div class="sbody">
+            <table class="ptab" id="kpis"></table>
+            <div class="gtbox" id="gt" hidden></div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="hist" hidden>
+          <details class="sec" open><summary>Distribution</summary><div class="sbody">
+            <div class="f"><label for="hmode">Weighting:</label><select id="hmode"><option value="n">Number fraction</option><option value="a">Area fraction</option></select></div>
+            <div class="f"><label for="bins">Number of bins</label><div class="frow"><input type="range" id="bins" min="6" max="40" step="1"><output id="binsO"></output></div></div>
+          </div></details>
+          <details class="sec" open><summary>Axis</summary><div class="sbody">
+            <div class="f"><label for="xmax">x-axis maximum:</label><div class="funit"><input type="number" id="xmax" step="50" min="50" placeholder="Automatic"><span>nm</span></div></div>
+            <div class="f"><label for="ymax">y-axis maximum:</label><div class="funit"><input type="number" id="ymax" step="1" min="1" placeholder="Automatic"><span>%</span></div></div>
+            <div class="btnrow"><button class="btn" id="autoG">Automatic Range and Bins</button></div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="map" hidden>
+          <details class="sec" open><summary>Coloring</summary><div class="sbody">
+            <div class="f"><label for="cmapSel">Color table:</label><select id="cmapSel"><option value="turbo">Turbo</option><option value="jet">Jet</option><option value="viridis">Viridis</option><option value="plasma">Plasma</option></select></div>
+            <div class="note" id="rangeInfo">Color range: D2–D98 of included grains.</div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="cmp" hidden>
+          <details class="sec" open><summary>Data Sets</summary><div class="sbody">
+            <table class="ptab" id="cmpT"></table>
+            <div class="btnrow"><button class="btn" data-act="processAll">Process All</button><button class="btn" data-act="open">Add Images</button></div>
+            <div class="note">열린 이미지 중 체크된 결과를 같은 축에서 비교합니다. 이름은 각 이미지의 Label을 씁니다. 이미지를 다시 보정하면 비교 결과에도 바로 반영됩니다. Minimum ECD와 경계 제외 조건은 모든 이미지에 같이 적용됩니다.</div>
+          </div></details>
+          <details class="sec" open><summary>Plot</summary><div class="sbody">
+            <div class="f"><label for="cmode">Plot type:</label><select id="cmode"><option value="bar">Grouped histogram</option><option value="cdf">Cumulative distribution</option></select></div>
+          </div></details>
+        </div>
+
+        <div class="sform" data-node="export" hidden>
+          <details class="sec" open><summary>Export</summary><div class="sbody">
+            <div class="btnrow"><button class="btn" data-act="exGrains">Grains CSV</button><button class="btn" data-act="exSum">Summary CSV</button></div>
+            <div class="btnrow"><button class="btn" data-act="exPng">Image PNG</button><button class="btn" data-act="exPlot">Plot PNG</button><button class="btn" data-act="exCmp">Compare CSV</button></div>
+            <div class="note">Image PNG는 현재 Graphics view를 원본 해상도로 저장합니다. Size Map이면 color legend가 함께 들어갑니다. Summary CSV에는 분석 파라미터가 함께 기록됩니다.</div>
+          </div></details>
+        </div>
+      </div>
+    </section>
+    <div class="split v" data-split="sw"></div>
+
+    <section class="right">
+      <div class="pane">
+        <div class="wtabs" role="tablist">
+          <button class="wtab" data-wtab="graphics" aria-selected="true">Graphics</button>
+          <button class="wtab" data-wtab="hist" aria-selected="false">ECD Distribution</button>
+          <button class="wtab" data-wtab="cmp" aria-selected="false">Compare</button>
+        </div>
+        <div class="gtool" id="gtool">
+          <button class="qbtn" data-act="zin" title="Zoom in"><svg class="i"><use href="#i-zin"/></svg></button>
+          <button class="qbtn" data-act="zout" title="Zoom out"><svg class="i"><use href="#i-zout"/></svg></button>
+          <button class="qbtn" data-act="fit" title="Zoom extents (F)"><svg class="i"><use href="#i-fit"/></svg></button>
+          <span class="gsep"></span>
+          <button class="qbtn" data-tool="pan" title="Pan (V)"><svg class="i"><use href="#i-pan"/></svg></button>
+          <button class="qbtn" data-tool="roi" title="ROI (R)"><svg class="i"><use href="#i-roi"/></svg></button>
+          <button class="qbtn" data-tool="scale" title="Scale line (S)"><svg class="i"><use href="#i-scaleline"/></svg></button>
+          <button class="qbtn" data-tool="draw" title="Draw GB (B)"><svg class="i"><use href="#i-draw"/></svg></button>
+          <button class="qbtn" data-tool="erase" title="Erase GB (E)"><svg class="i"><use href="#i-erase"/></svg></button>
+          <button class="qbtn" data-tool="seed" title="Split (A)"><svg class="i"><use href="#i-seed"/></svg></button>
+          <button class="qbtn" data-tool="merge" title="Merge (M)"><svg class="i"><use href="#i-merge"/></svg></button>
+          <span class="gsep"></span>
+          <button class="qbtn" data-view="image" title="Image"><svg class="i"><use href="#i-image"/></svg></button>
+          <button class="qbtn" data-view="overlay" title="Boundary"><svg class="i"><use href="#i-gb"/></svg></button>
+          <button class="qbtn" data-view="grains" title="Grain"><svg class="i"><use href="#i-grain"/></svg></button>
+          <button class="qbtn" data-view="size" title="Size map"><svg class="i"><use href="#i-size"/></svg></button>
+          <button class="qbtn" data-view="ridge" title="Boundary signal"><svg class="i"><use href="#i-signal"/></svg></button>
+          <span class="gsep"></span>
+          <button class="qbtn" data-act="exPng" title="Export image"><svg class="i"><use href="#i-png"/></svg></button>
+        </div>
+        <div class="gbody">
+          <div class="stage" id="stage">
+            <canvas id="view"></canvas>
+            <div class="empty" id="empty"><div><b>No image</b>Add Images 또는 drag &amp; drop으로 SEM 이미지를 불러오십시오. 여러 장을 한 번에 열 수 있습니다.<br>TIF · PNG · JPG (+ Hitachi .txt)<br><button class="linkbtn" data-act="sample">검증용 합성 샘플 열기</button></div></div>
+            <div class="cbar" id="cbar" hidden><div class="ct">ECD (nm)</div><div class="cb"><canvas id="cbarC" width="1" height="256"></canvas><div id="cbl"></div></div></div>
+            <div class="tip" id="tip" hidden></div>
+            <div class="drop" id="drop" hidden>Drop SEM image here</div>
+          </div>
+          <div class="plot" id="histWrap" hidden><canvas id="hist"></canvas><div class="tip" id="ctip" hidden></div></div>
+          <div class="plot" id="cdfWrap" hidden><canvas id="cdf"></canvas><div class="tip" id="dtip" hidden></div></div>
+        </div>
+      </div>
+      <div class="split h" data-split="bh"></div>
+      <div class="pane">
+        <div class="wtabs" role="tablist">
+          <button class="wtab" data-mtab="msg" aria-selected="true">Messages</button>
+          <button class="wtab" data-mtab="prog" aria-selected="false">Progress</button>
+          <button class="wtab" data-mtab="tbl" aria-selected="false">Table</button>
+        </div>
+        <div class="mbody">
+          <div class="log" id="log"></div>
+          <div class="prog" id="prog" hidden></div>
+          <div id="tblWrap" hidden><table class="dtab" id="dtab"></table></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="statusbar">
+    <span class="msg" id="status">Ready</span>
+    <span id="databar"></span>
+  </footer>
+</div>
+<input type="file" id="file" accept=".tif,.tiff,.png,.jpg,.jpeg,.bmp,.txt" multiple hidden>
+
+/*VENDOR*/
+<script>
+/*GBCORE*/
+</script>
+<script>
+/*APP*/
+</script>
